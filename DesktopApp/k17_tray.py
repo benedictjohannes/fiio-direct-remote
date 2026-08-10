@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QPoint, QEvent, pyqtSlot, pyqtProperty, pyqtClassInfo, QObject
 from PyQt6.QtDBus import QDBusConnection, QDBusAbstractAdaptor, QDBusInterface
 from PyQt6.QtGui import QIcon, QFont, QAction, QCursor
@@ -13,8 +14,25 @@ from PyQt6.QtWidgets import (
 from k17_backend import K17Backend
 
 ASSETS_DIR = Path(__file__).parent / "assets"
-ICON_ONLINE_PATH = str(ASSETS_DIR / "k17_logo_online.svg")
-ICON_OFFLINE_PATH = str(ASSETS_DIR / "k17_logo_offline.svg")
+ICON_ONLINE_NAME = "k17_logo_online"
+ICON_OFFLINE_NAME = "k17_logo_offline"
+ICON_ONLINE_PATH = str(ASSETS_DIR / f"{ICON_ONLINE_NAME}.svg")
+ICON_OFFLINE_PATH = str(ASSETS_DIR / f"{ICON_OFFLINE_NAME}.svg")
+
+
+def send_desktop_notification(summary: str, body: str, icon: str = "dialog-error"):
+    try:
+        bus = QDBusConnection.sessionBus()
+        if bus.isConnected():
+            iface = QDBusInterface(
+                "org.freedesktop.Notifications",
+                "/org/freedesktop/Notifications",
+                "org.freedesktop.Notifications",
+                bus
+            )
+            iface.call("Notify", "FiiO K17 Controller", 0, icon, summary, body, [], {}, 4000)
+    except Exception as e:
+        print(f"[Notification] Failed to send desktop notification: {e}", flush=True)
 
 INPUT_MODES = [
     ("USB Audio", "0001"),
@@ -201,13 +219,25 @@ class K17PopupWindow(QWidget):
 
         # Retry / Refresh Button for Offline state
         self.retry_btn = QPushButton("Retry Connection", self)
-        self.retry_btn.clicked.connect(self.tray_app.refresh_status)
+        self.retry_btn.clicked.connect(lambda: self.tray_app.refresh_status(force_resolve=True))
         main_layout.addWidget(self.retry_btn)
+
+    def set_connecting_state(self):
+        self.status_badge.setText("CONNECTING...")
+        self.status_badge.setStyleSheet("color: #f9e2af; font-weight: bold; font-size: 10px;")
 
     def _on_slider_value_changed(self, value):
         self.vol_val_label.setText(f"{value}")
         if not self.is_updating_ui:
             self.vol_timer.start()
+
+    def update_volume_display(self, val: int):
+        self.is_updating_ui = True
+        try:
+            self.vol_slider.setValue(val)
+            self.vol_val_label.setText(str(val))
+        finally:
+            self.is_updating_ui = False
 
     def _dispatch_volume_change(self):
         val = self.vol_slider.value()
@@ -266,6 +296,14 @@ class K17PopupWindow(QWidget):
 
 @pyqtClassInfo('D-Bus Interface', 'org.kde.StatusNotifierItem')
 class StatusNotifierItemKDEAdaptor(QDBusAbstractAdaptor):
+    NewTitle = pyqtSignal()
+    NewIcon = pyqtSignal()
+    NewAttentionIcon = pyqtSignal()
+    NewOverlayIcon = pyqtSignal()
+    NewMenu = pyqtSignal()
+    NewToolTip = pyqtSignal()
+    NewStatus = pyqtSignal(str)
+
     def __init__(self, parent: 'K17StatusNotifierItem'):
         super().__init__(parent)
         self.sni = parent
@@ -338,6 +376,14 @@ class StatusNotifierItemKDEAdaptor(QDBusAbstractAdaptor):
 
 @pyqtClassInfo('D-Bus Interface', 'org.freedesktop.StatusNotifierItem')
 class StatusNotifierItemFreedesktopAdaptor(QDBusAbstractAdaptor):
+    NewTitle = pyqtSignal()
+    NewIcon = pyqtSignal()
+    NewAttentionIcon = pyqtSignal()
+    NewOverlayIcon = pyqtSignal()
+    NewMenu = pyqtSignal()
+    NewToolTip = pyqtSignal()
+    NewStatus = pyqtSignal(str)
+
     def __init__(self, parent: 'K17StatusNotifierItem'):
         super().__init__(parent)
         self.sni = parent
@@ -428,7 +474,7 @@ class K17StatusNotifierItem(QObject):
         self.category = "ApplicationStatus"
         self.status = "Active"
         self.icon_theme_path = str(ASSETS_DIR)
-        self.icon_name = ICON_OFFLINE_PATH
+        self.icon_name = ICON_OFFLINE_NAME
         self.tooltip = "FiiO K17 Controller (Offline)"
 
         self.kde_adaptor = StatusNotifierItemKDEAdaptor(self)
@@ -502,6 +548,12 @@ class K17TrayApp(QObject):
 
         self.popup = K17PopupWindow(self.backend, self)
 
+        self.pending_volume: Optional[int] = None
+        self.scroll_vol_timer = QTimer(self)
+        self.scroll_vol_timer.setSingleShot(True)
+        self.scroll_vol_timer.setInterval(500)
+        self.scroll_vol_timer.timeout.connect(self._dispatch_scroll_volume)
+
         # Context Menu for Right-Click
         self.menu = QMenu()
         show_action = QAction("Open FiiO K17 Controller", self.menu)
@@ -512,7 +564,7 @@ class K17TrayApp(QObject):
         self.menu.addAction(quit_action)
 
         self.sni = K17StatusNotifierItem()
-        self.sni.set_icon(ICON_OFFLINE_PATH)
+        self.sni.set_icon(ICON_OFFLINE_NAME)
         self.sni.set_tooltip("FiiO K17 Controller (Offline)")
 
         self.sni.activated.connect(self._on_sni_activated)
@@ -523,7 +575,7 @@ class K17TrayApp(QObject):
         self.refresh_status()
 
     def _show_window(self):
-        self.refresh_status()
+        self.refresh_status(force_resolve=False)
         self.popup.show()
         self.popup.raise_()
         self.popup.activateWindow()
@@ -539,23 +591,58 @@ class K17TrayApp(QObject):
         self.menu.popup(pos)
 
     def _on_sni_scroll(self, delta: int, orientation: str):
-        # Stage 1: Scroll logging only. Do NOT trigger volume control yet.
-        pass
+        if self.backend.current_volume is None:
+            print("[SNI] Scroll refused: current volume is unknown", flush=True)
+            return
 
-    def refresh_status(self):
+        if self.pending_volume is None or not self.scroll_vol_timer.isActive():
+            self.pending_volume = self.backend.current_volume
+
+        step = 2 if delta > 0 else -2
+        self.pending_volume = max(0, min(100, self.pending_volume + step))
+        print(f"[SNI] Scroll event applied: step={step}, pending_volume={self.pending_volume}", flush=True)
+
+        self.popup.update_volume_display(self.pending_volume)
+        self.scroll_vol_timer.start()
+
+    def _dispatch_scroll_volume(self):
+        if self.pending_volume is not None:
+            self.set_volume(self.pending_volume)
+
+    def refresh_status(self, force_resolve: bool = False):
+        if hasattr(self, "worker") and self.worker.isRunning():
+            self.refresh_queued = True
+            return
+
+        if force_resolve:
+            self.backend.invalidate_cache()
+
+        self.popup.set_connecting_state()
+
         self.worker = StatusWorker(self.backend)
         self.worker.finished.connect(self._on_status_retrieved)
         self.worker.start()
 
     def _on_status_retrieved(self, success: bool, data: dict):
         if success:
-            self.sni.set_icon(ICON_ONLINE_PATH)
-            self.sni.set_tooltip("FiiO K17 Controller (Online)")
+            self.sni.set_icon(ICON_ONLINE_NAME)
+            vol_info = f" - Vol: {self.backend.current_volume}" if self.backend.current_volume is not None else ""
+            self.sni.set_tooltip(f"FiiO K17 Controller (Online{vol_info})")
             self.popup.update_state(is_online=True, status_data=data)
+            if self.backend.current_volume is not None and not self.scroll_vol_timer.isActive():
+                self.pending_volume = self.backend.current_volume
         else:
-            self.sni.set_icon(ICON_OFFLINE_PATH)
+            self.sni.set_icon(ICON_OFFLINE_NAME)
             self.sni.set_tooltip("FiiO K17 Controller (Offline)")
             self.popup.update_state(is_online=False)
+            send_desktop_notification(
+                "FiiO K17 Connection Error",
+                "Failed to update FiiO K17 device status."
+            )
+
+        if getattr(self, "refresh_queued", False):
+            self.refresh_queued = False
+            QTimer.singleShot(50, lambda: self.refresh_status())
 
     def set_volume(self, val: int):
         self.vol_worker = VolumeWorker(self.backend, val)
@@ -568,7 +655,9 @@ class K17TrayApp(QObject):
         self.mode_worker.start()
 
     def _on_cmd_finished(self, success: bool):
-        if not success:
+        if success:
+            QTimer.singleShot(400, self.refresh_status)
+        else:
             self.refresh_status()
 
     def run(self):
