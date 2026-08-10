@@ -1,12 +1,13 @@
 import os
 import sys
 from pathlib import Path
-from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QPoint
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QPoint, QEvent, pyqtSlot, pyqtProperty, pyqtClassInfo, QObject
+from PyQt6.QtDBus import QDBusConnection, QDBusAbstractAdaptor, QDBusInterface
 from PyQt6.QtGui import QIcon, QFont, QAction, QCursor
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QFrame, QVBoxLayout, QHBoxLayout,
     QLabel, QSlider, QComboBox, QPushButton, QGraphicsDropShadowEffect,
-    QSystemTrayIcon, QMenu, QWidgetAction
+    QMenu, QWidgetAction
 )
 
 from k17_backend import K17Backend
@@ -72,6 +73,7 @@ class K17PopupWindow(QWidget):
         self.is_updating_ui = False
 
         # Standard desktop window with title bar
+        self.setObjectName("K17Window")
         self.setWindowTitle("FiiO K17 Controller")
         self.setFixedSize(340, 260)
         self.setWindowFlags(Qt.WindowType.Window)
@@ -220,40 +222,41 @@ class K17PopupWindow(QWidget):
 
     def update_state(self, is_online: bool, status_data: dict = None):
         self.is_updating_ui = True
-        if is_online:
-            self.status_badge.setText("ONLINE")
-            self.status_badge.setStyleSheet("color: #a6e3a1; font-weight: bold; font-size: 10px;")
-            self.vol_slider.setEnabled(True)
-            self.mode_combo.setEnabled(True)
-            self.retry_btn.setVisible(False)
+        try:
+            if is_online:
+                self.status_badge.setText("ONLINE")
+                self.status_badge.setStyleSheet("color: #a6e3a1; font-weight: bold; font-size: 10px;")
+                self.vol_slider.setEnabled(True)
+                self.mode_combo.setEnabled(True)
+                self.retry_btn.setVisible(False)
 
-            if status_data:
-                # Update Volume if available
-                if "currentVolume" in status_data:
-                    try:
-                        vol = int(status_data["currentVolume"])
-                        self.vol_slider.setValue(vol)
-                        self.vol_val_label.setText(str(vol))
-                    except (ValueError, TypeError):
-                        pass
+                if status_data:
+                    # Update Volume if available
+                    if "currentVolume" in status_data:
+                        try:
+                            vol = int(status_data["currentVolume"])
+                            self.vol_slider.setValue(vol)
+                            self.vol_val_label.setText(str(vol))
+                        except (ValueError, TypeError):
+                            pass
 
-                # Update Mode if available
-                if "usbAudio" in status_data:
-                    mode_str = str(status_data.get("usbAudio", ""))
-                    # Map backend status field if present
-                    for idx, (_, code) in enumerate(INPUT_MODES):
-                        if code == mode_str:
-                            self.mode_combo.setCurrentIndex(idx)
-                            break
-        else:
-            self.status_badge.setText("OFFLINE")
-            self.status_badge.setStyleSheet("color: #f38ba8; font-weight: bold; font-size: 10px;")
-            self.vol_slider.setEnabled(False)
-            self.mode_combo.setEnabled(False)
-            self.vol_val_label.setText("--")
-            self.retry_btn.setVisible(True)
-
-        self.is_updating_ui = False
+                    # Update Mode if available
+                    if "usbAudio" in status_data:
+                        mode_str = str(status_data.get("usbAudio", ""))
+                        # Map backend status field if present
+                        for idx, (_, code) in enumerate(INPUT_MODES):
+                            if code == mode_str:
+                                self.mode_combo.setCurrentIndex(idx)
+                                break
+            else:
+                self.status_badge.setText("OFFLINE")
+                self.status_badge.setStyleSheet("color: #f38ba8; font-weight: bold; font-size: 10px;")
+                self.vol_slider.setEnabled(False)
+                self.mode_combo.setEnabled(False)
+                self.vol_val_label.setText("--")
+                self.retry_btn.setVisible(True)
+        finally:
+            self.is_updating_ui = False
 
     def closeEvent(self, event):
         # Intercept close button to hide to system tray instead of exiting app
@@ -261,31 +264,260 @@ class K17PopupWindow(QWidget):
         self.hide()
 
 
-class K17TrayApp:
+@pyqtClassInfo('D-Bus Interface', 'org.kde.StatusNotifierItem')
+class StatusNotifierItemKDEAdaptor(QDBusAbstractAdaptor):
+    def __init__(self, parent: 'K17StatusNotifierItem'):
+        super().__init__(parent)
+        self.sni = parent
+        self.setAutoRelaySignals(True)
+
+    @pyqtProperty(str)
+    def Category(self):
+        return self.sni.category
+
+    @pyqtProperty(str)
+    def Id(self):
+        return self.sni.id
+
+    @pyqtProperty(str)
+    def Title(self):
+        return self.sni.title
+
+    @pyqtProperty(str)
+    def Status(self):
+        return self.sni.status
+
+    @pyqtProperty(int)
+    def WindowId(self):
+        return 0
+
+    @pyqtProperty(str)
+    def IconThemePath(self):
+        return self.sni.icon_theme_path
+
+    @pyqtProperty(str)
+    def IconName(self):
+        return self.sni.icon_name
+
+    @pyqtProperty(str)
+    def OverlayIconName(self):
+        return ""
+
+    @pyqtProperty(str)
+    def AttentionIconName(self):
+        return ""
+
+    @pyqtProperty(str)
+    def AttentionMovieName(self):
+        return ""
+
+    @pyqtProperty(bool)
+    def ItemIsMenu(self):
+        return False
+
+    @pyqtSlot(int, str)
+    def Scroll(self, delta: int, orientation: str):
+        self.sni.on_scroll(delta, orientation)
+
+    @pyqtSlot(int, int)
+    def Activate(self, x: int, y: int):
+        self.sni.on_activate(x, y)
+
+    @pyqtSlot(int, int)
+    def ContextMenu(self, x: int, y: int):
+        self.sni.on_context_menu(x, y)
+
+    @pyqtSlot(int, int)
+    def SecondaryActivate(self, x: int, y: int):
+        self.sni.on_secondary_activate(x, y)
+
+    @pyqtSlot(str)
+    def ProvideXdgActivationToken(self, token: str):
+        pass
+
+
+@pyqtClassInfo('D-Bus Interface', 'org.freedesktop.StatusNotifierItem')
+class StatusNotifierItemFreedesktopAdaptor(QDBusAbstractAdaptor):
+    def __init__(self, parent: 'K17StatusNotifierItem'):
+        super().__init__(parent)
+        self.sni = parent
+        self.setAutoRelaySignals(True)
+
+    @pyqtProperty(str)
+    def Category(self):
+        return self.sni.category
+
+    @pyqtProperty(str)
+    def Id(self):
+        return self.sni.id
+
+    @pyqtProperty(str)
+    def Title(self):
+        return self.sni.title
+
+    @pyqtProperty(str)
+    def Status(self):
+        return self.sni.status
+
+    @pyqtProperty(int)
+    def WindowId(self):
+        return 0
+
+    @pyqtProperty(str)
+    def IconThemePath(self):
+        return self.sni.icon_theme_path
+
+    @pyqtProperty(str)
+    def IconName(self):
+        return self.sni.icon_name
+
+    @pyqtProperty(str)
+    def OverlayIconName(self):
+        return ""
+
+    @pyqtProperty(str)
+    def AttentionIconName(self):
+        return ""
+
+    @pyqtProperty(str)
+    def AttentionMovieName(self):
+        return ""
+
+    @pyqtProperty(bool)
+    def ItemIsMenu(self):
+        return False
+
+    @pyqtSlot(int, str)
+    def Scroll(self, delta: int, orientation: str):
+        self.sni.on_scroll(delta, orientation)
+
+    @pyqtSlot(int, int)
+    def Activate(self, x: int, y: int):
+        self.sni.on_activate(x, y)
+
+    @pyqtSlot(int, int)
+    def ContextMenu(self, x: int, y: int):
+        self.sni.on_context_menu(x, y)
+
+    @pyqtSlot(int, int)
+    def SecondaryActivate(self, x: int, y: int):
+        self.sni.on_secondary_activate(x, y)
+
+    @pyqtSlot(str)
+    def ProvideXdgActivationToken(self, token: str):
+        pass
+
+
+class K17StatusNotifierItem(QObject):
+    activated = pyqtSignal()
+    context_menu_requested = pyqtSignal(int, int)
+    scroll_received = pyqtSignal(int, str)
+
+    NewTitle = pyqtSignal()
+    NewIcon = pyqtSignal()
+    NewAttentionIcon = pyqtSignal()
+    NewOverlayIcon = pyqtSignal()
+    NewMenu = pyqtSignal()
+    NewToolTip = pyqtSignal()
+    NewStatus = pyqtSignal(str)
+
+    def __init__(self, item_id: str = "fiioK17", title: str = "FiiO K17 Controller"):
+        super().__init__()
+        self.id = item_id
+        self.title = title
+        self.category = "ApplicationStatus"
+        self.status = "Active"
+        self.icon_theme_path = str(ASSETS_DIR)
+        self.icon_name = ICON_OFFLINE_PATH
+        self.tooltip = "FiiO K17 Controller (Offline)"
+
+        self.kde_adaptor = StatusNotifierItemKDEAdaptor(self)
+        self.fd_adaptor = StatusNotifierItemFreedesktopAdaptor(self)
+
+        self.bus = QDBusConnection.sessionBus()
+        pid = os.getpid()
+        self.service_name = f"org.kde.StatusNotifierItem-{pid}-1"
+        self.object_path = "/StatusNotifierItem"
+
+        self._register_dbus()
+
+    def _register_dbus(self):
+        registered_service = self.bus.registerService(self.service_name)
+        registered_obj = self.bus.registerObject(
+            self.object_path,
+            self,
+            QDBusConnection.RegisterOption.ExportAdaptors
+        )
+        unique_name = self.bus.baseService()
+        print(f"[SNI] D-Bus service registered: name={self.service_name} (ok={registered_service}), obj={self.object_path} (ok={registered_obj}), unique_name={unique_name}", flush=True)
+
+        watcher = QDBusInterface(
+            "org.kde.StatusNotifierWatcher",
+            "/StatusNotifierWatcher",
+            "org.kde.StatusNotifierWatcher",
+            self.bus
+        )
+        reply = watcher.call("RegisterStatusNotifierItem", self.object_path)
+        if reply.type() == reply.MessageType.ErrorMessage:
+            print(f"[SNI] StatusNotifierWatcher registration error: {reply.errorMessage()}", flush=True)
+        else:
+            print(f"[SNI] Successfully registered with StatusNotifierWatcher ({self.object_path})", flush=True)
+
+    def set_icon(self, icon_path: str):
+        if self.icon_name != icon_path:
+            self.icon_name = icon_path
+            self.NewIcon.emit()
+
+    def set_tooltip(self, tooltip_text: str):
+        if self.tooltip != tooltip_text:
+            self.tooltip = tooltip_text
+            self.title = tooltip_text
+            self.NewToolTip.emit()
+            self.NewTitle.emit()
+
+    def on_scroll(self, delta: int, orientation: str):
+        print(f"[SNI] Scroll received: delta={delta}, orientation={orientation}", flush=True)
+        self.scroll_received.emit(delta, orientation)
+
+    def on_activate(self, x: int, y: int):
+        print(f"[SNI] Activate received: x={x}, y={y}", flush=True)
+        self.activated.emit()
+
+    def on_context_menu(self, x: int, y: int):
+        print(f"[SNI] ContextMenu received: x={x}, y={y}", flush=True)
+        self.context_menu_requested.emit(x, y)
+
+    def on_secondary_activate(self, x: int, y: int):
+        print(f"[SNI] SecondaryActivate received: x={x}, y={y}", flush=True)
+        self.activated.emit()
+
+
+class K17TrayApp(QObject):
     def __init__(self):
+        super().__init__()
         self.app = QApplication(sys.argv)
         self.app.setQuitOnLastWindowClosed(False)
 
         self.backend = K17Backend()
 
-        self.icon_online = QIcon(ICON_ONLINE_PATH)
-        self.icon_offline = QIcon(ICON_OFFLINE_PATH)
-
-        self.tray_icon = QSystemTrayIcon()
-        self.tray_icon.setIcon(self.icon_offline)
-        self.tray_icon.setToolTip("FiiO K17 Controller (Offline)")
-
         self.popup = K17PopupWindow(self.backend, self)
-        
+
         # Context Menu for Right-Click
         self.menu = QMenu()
         show_action = QAction("Open FiiO K17 Controller", self.menu)
         show_action.triggered.connect(self._show_window)
         self.menu.addAction(show_action)
-        self.tray_icon.setContextMenu(self.menu)
+        quit_action = QAction("Quit", self.menu)
+        quit_action.triggered.connect(self.app.quit)
+        self.menu.addAction(quit_action)
 
-        self.tray_icon.activated.connect(self._on_tray_activated)
-        self.tray_icon.show()
+        self.sni = K17StatusNotifierItem()
+        self.sni.set_icon(ICON_OFFLINE_PATH)
+        self.sni.set_tooltip("FiiO K17 Controller (Offline)")
+
+        self.sni.activated.connect(self._on_sni_activated)
+        self.sni.context_menu_requested.connect(self._on_sni_context_menu)
+        self.sni.scroll_received.connect(self._on_sni_scroll)
 
         # Perform initial async status lookup
         self.refresh_status()
@@ -296,12 +528,19 @@ class K17TrayApp:
         self.popup.raise_()
         self.popup.activateWindow()
 
-    def _on_tray_activated(self, reason):
-        if reason == QSystemTrayIcon.ActivationReason.Trigger:
-            if self.popup.isVisible() and not self.popup.isMinimized():
-                self.popup.hide()
-            else:
-                self._show_window()
+    def _on_sni_activated(self):
+        if self.popup.isVisible() and not self.popup.isMinimized():
+            self.popup.hide()
+        else:
+            self._show_window()
+
+    def _on_sni_context_menu(self, x: int, y: int):
+        pos = QPoint(x, y) if (x != 0 or y != 0) else QCursor.pos()
+        self.menu.popup(pos)
+
+    def _on_sni_scroll(self, delta: int, orientation: str):
+        # Stage 1: Scroll logging only. Do NOT trigger volume control yet.
+        pass
 
     def refresh_status(self):
         self.worker = StatusWorker(self.backend)
@@ -310,12 +549,12 @@ class K17TrayApp:
 
     def _on_status_retrieved(self, success: bool, data: dict):
         if success:
-            self.tray_icon.setIcon(self.icon_online)
-            self.tray_icon.setToolTip("FiiO K17 Controller (Online)")
+            self.sni.set_icon(ICON_ONLINE_PATH)
+            self.sni.set_tooltip("FiiO K17 Controller (Online)")
             self.popup.update_state(is_online=True, status_data=data)
         else:
-            self.tray_icon.setIcon(self.icon_offline)
-            self.tray_icon.setToolTip("FiiO K17 Controller (Offline)")
+            self.sni.set_icon(ICON_OFFLINE_PATH)
+            self.sni.set_tooltip("FiiO K17 Controller (Offline)")
             self.popup.update_state(is_online=False)
 
     def set_volume(self, val: int):
@@ -334,3 +573,4 @@ class K17TrayApp:
 
     def run(self):
         return self.app.exec()
+
