@@ -6,7 +6,7 @@ from PyQt6.QtGui import QIcon, QFont, QAction, QCursor
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QFrame, QVBoxLayout, QHBoxLayout,
     QLabel, QSlider, QComboBox, QPushButton, QGraphicsDropShadowEffect,
-    QSystemTrayIcon, QMenu
+    QSystemTrayIcon, QMenu, QWidgetAction
 )
 
 from k17_backend import K17Backend
@@ -71,13 +71,10 @@ class K17PopupWindow(QWidget):
         self.tray_app = tray_app
         self.is_updating_ui = False
 
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint |
-            Qt.WindowType.Tool
-        )
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setFixedSize(300, 240)
+        # Standard desktop window with title bar
+        self.setWindowTitle("FiiO K17 Controller")
+        self.setFixedSize(340, 260)
+        self.setWindowFlags(Qt.WindowType.Window)
 
         # Volume Debounce Timer (500ms)
         self.vol_timer = QTimer(self)
@@ -88,18 +85,9 @@ class K17PopupWindow(QWidget):
         self._init_ui()
 
     def _init_ui(self):
-        # Outer Layout
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(8, 8, 8, 8)
-
-        # Card Container Frame
-        self.card = QFrame(self)
-        self.card.setObjectName("Card")
-        self.card.setStyleSheet("""
-            QFrame#Card {
+        self.setStyleSheet("""
+            QWidget#K17Window {
                 background-color: #1e1e2e;
-                border: 1px solid #313244;
-                border-radius: 12px;
             }
             QLabel {
                 color: #cdd6f4;
@@ -153,69 +141,66 @@ class K17PopupWindow(QWidget):
                 background-color: #45475a;
             }
         """)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(16, 16, 16, 16)
+        main_layout.setSpacing(12)
 
-        card_layout = QVBoxLayout(self.card)
-        card_layout.setContentsMargins(14, 14, 14, 14)
-        card_layout.setSpacing(12)
-
-        # Header with Title & Status
+        # Header Row
         header_layout = QHBoxLayout()
-        title_label = QLabel("FiiO K17", self.card)
+        title_label = QLabel("FiiO K17", self)
         font = title_label.font()
-        font.setPointSize(11)
+        font.setPointSize(12)
         font.setBold(True)
         title_label.setFont(font)
         
-        self.status_badge = QLabel("OFFLINE", self.card)
+        self.status_badge = QLabel("OFFLINE", self)
         self.status_badge.setStyleSheet("color: #f38ba8; font-weight: bold; font-size: 10px;")
 
         header_layout.addWidget(title_label)
         header_layout.addStretch()
         header_layout.addWidget(self.status_badge)
-        card_layout.addLayout(header_layout)
+        main_layout.addLayout(header_layout)
 
         # Separator line
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
         sep.setFrameShadow(QFrame.Shadow.Sunken)
         sep.setStyleSheet("background-color: #313244; max-height: 1px; border: none;")
-        card_layout.addWidget(sep)
+        main_layout.addWidget(sep)
 
         # Volume Controls
         vol_header = QHBoxLayout()
-        vol_title = QLabel("Volume", self.card)
-        self.vol_val_label = QLabel("--", self.card)
+        vol_title = QLabel("Volume", self)
+        self.vol_val_label = QLabel("--", self)
         self.vol_val_label.setStyleSheet("color: #89b4fa; font-weight: bold;")
         vol_header.addWidget(vol_title)
         vol_header.addStretch()
         vol_header.addWidget(self.vol_val_label)
-        card_layout.addLayout(vol_header)
+        main_layout.addLayout(vol_header)
 
-        self.vol_slider = QSlider(Qt.Orientation.Horizontal, self.card)
+        self.vol_slider = QSlider(Qt.Orientation.Horizontal, self)
         self.vol_slider.setRange(0, 100)
         self.vol_slider.setValue(0)
         self.vol_slider.valueChanged.connect(self._on_slider_value_changed)
-        card_layout.addWidget(self.vol_slider)
+        main_layout.addWidget(self.vol_slider)
 
         # Input Mode Selection
         mode_header = QHBoxLayout()
-        mode_title = QLabel("Input Source", self.card)
+        mode_title = QLabel("Input Source", self)
         mode_header.addWidget(mode_title)
         mode_header.addStretch()
-        card_layout.addLayout(mode_header)
+        main_layout.addLayout(mode_header)
 
-        self.mode_combo = QComboBox(self.card)
+        self.mode_combo = QComboBox(self)
         for label, code in INPUT_MODES:
             self.mode_combo.addItem(label, code)
         self.mode_combo.currentIndexChanged.connect(self._on_mode_selected)
-        card_layout.addWidget(self.mode_combo)
+        main_layout.addWidget(self.mode_combo)
 
         # Retry / Refresh Button for Offline state
-        self.retry_btn = QPushButton("Retry Connection", self.card)
+        self.retry_btn = QPushButton("Retry Connection", self)
         self.retry_btn.clicked.connect(self.tray_app.refresh_status)
-        card_layout.addWidget(self.retry_btn)
-
-        main_layout.addWidget(self.card)
+        main_layout.addWidget(self.retry_btn)
 
     def _on_slider_value_changed(self, value):
         self.vol_val_label.setText(f"{value}")
@@ -270,9 +255,10 @@ class K17PopupWindow(QWidget):
 
         self.is_updating_ui = False
 
-    def focusOutEvent(self, event):
+    def closeEvent(self, event):
+        # Intercept close button to hide to system tray instead of exiting app
+        event.ignore()
         self.hide()
-        super().focusOutEvent(event)
 
 
 class K17TrayApp:
@@ -293,9 +279,9 @@ class K17TrayApp:
         
         # Context Menu for Right-Click
         self.menu = QMenu()
-        quit_action = QAction("Quit FiiO K17 Controller", self.menu)
-        quit_action.triggered.connect(self.app.quit)
-        self.menu.addAction(quit_action)
+        show_action = QAction("Open FiiO K17 Controller", self.menu)
+        show_action.triggered.connect(self._show_window)
+        self.menu.addAction(show_action)
         self.tray_icon.setContextMenu(self.menu)
 
         self.tray_icon.activated.connect(self._on_tray_activated)
@@ -304,26 +290,18 @@ class K17TrayApp:
         # Perform initial async status lookup
         self.refresh_status()
 
+    def _show_window(self):
+        self.refresh_status()
+        self.popup.show()
+        self.popup.raise_()
+        self.popup.activateWindow()
+
     def _on_tray_activated(self, reason):
-        if reason in (QSystemTrayIcon.ActivationReason.Trigger, QSystemTrayIcon.ActivationReason.DoubleClick):
-            if self.popup.isVisible():
+        if reason == QSystemTrayIcon.ActivationReason.Trigger:
+            if self.popup.isVisible() and not self.popup.isMinimized():
                 self.popup.hide()
             else:
-                self.position_and_show_popup()
-                self.refresh_status()
-
-    def position_and_show_popup(self):
-        geometry = self.tray_icon.geometry()
-        if geometry.isEmpty():
-            cursor_pos = QCursor.pos()
-            self.popup.move(cursor_pos.x() - 150, cursor_pos.y() - 250)
-        else:
-            # Place near tray icon bounds
-            x = geometry.x() + (geometry.width() // 2) - 150
-            y = geometry.y() - 250 if geometry.y() > 300 else geometry.y() + geometry.height()
-            self.popup.move(x, y)
-        self.popup.show()
-        self.popup.activateWindow()
+                self._show_window()
 
     def refresh_status(self):
         self.worker = StatusWorker(self.backend)
