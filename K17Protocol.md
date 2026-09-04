@@ -23,7 +23,7 @@ Clients can listen on UDP multicast socket `224.0.0.255:12101` to automatically 
 ### 1.3 Control Channel (TCP)
 - **Port:** `12100` (TCP)
 - **Socket Policy:**
-  - The K17 firmware accepts a **single active TCP client** on port `12100`.
+  - The K17 firmware appears to accept only **one active TCP client** at a time on port `12100`.
   - Recommended client architecture: reuse sockets during active interaction, and cleanly close after an idle timeout (e.g. 10–30 seconds) to release the device lock.
 - **Wire Format:** ASCII-encoded hexadecimal strings and embedded JSON payloads.
 
