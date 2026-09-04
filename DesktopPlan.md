@@ -73,42 +73,43 @@ A lightweight system tray controller for the FiiO K17 DAC built with **Python & 
 
 ---
 
-## 4. Implementation Steps & Directory Structure
+## 4. Architecture & Directory Structure
 
-All application components will be located in the `DesktopApp/` directory:
-
-```
+```text
 DesktopApp/
 ├── assets/
-│   ├── k17_logo_online.svg / png   # Active connected tray icon (prefer using SVG)
-│   └── k17_logo_offline.svg / png  # Disconnected/error tray icon (prefer using SVG)
-├── k17_backend.py                  # mDNS/ARP IP resolution & TCP socket protocol
-├── k17_tray.py                     # PyQt6 system tray icon & popup control widget
+│   ├── k17_logo_online.svg / png   # Active connected tray icon
+│   └── k17_logo_offline.svg / png  # Disconnected/error tray icon
+│
+├── core/                           # 100% Pure Python & Cross-Platform (Zero UI / Toolkit deps)
+│   ├── constants.py                # Ports, commands, InputMode enum & display names
+│   ├── discovery.py                # UDP multicast + socket mDNS + cross-platform ARP (Linux/Win/Mac)
+│   ├── protocol.py                 # Hex framing & payload serialization/deserialization
+│   ├── client.py                   # TCP socket lifecycle, lock release idle timer, rate limiting
+│   └── controller.py               # High-level state machine + event subscriber hooks
+│
+├── frontends/                      # Modular UI / Presentation Frontends
+│   └── kde_qt/                     # KDE Plasma / Freedesktop PyQt6 System Tray
+│       ├── app.py                  # Tray application lifecycle manager
+│       ├── popup_window.py         # Qt dark theme control card
+│       ├── tray_sni.py             # D-Bus StatusNotifierItem (scroll wheel support)
+│       ├── workers.py              # Qt QThread async bridges to core controller
+│       └── notifications.py        # D-Bus desktop notification helper
+│
 └── main.py                         # Application entrypoint
 ```
-
-1. **`DesktopApp/k17_backend.py` / Network Module:**
-   - Implement `resolve_k17_ip()` with mDNS and ARP lookup fallback.
-   - Implement async send/receive functions (`fetch_status`, `set_volume`, `set_mode`) using cached IP with error propagation.
-2. **`DesktopApp/k17_tray.py` / PyQt6 UI:**
-   - Build main `QApplication` & `QSystemTrayIcon`.
-   - Use logo assets in `DesktopApp/assets/` for K17 stylized logo (Online and Offline states).
-   - Build popover widget with volume slider, 500ms debounce `QTimer`, input mode buttons, and status indicator.
-   - Implement state switcher method `set_device_state(is_online: bool)` that updates the tray icon and popup UI.
-   - Wire popup show signal to asynchronous status refresh / retry logic.
-3. **Script / Entrypoint (`DesktopApp/main.py`):**
-   - Add CLI support / background daemon setup.
-   - Test functionality against physical FiiO K17 hardware.
 
 ---
 
 # Status:
 
-- assets: generated
-- - python files: written, untested.
+- **Core Library (`core/`):** Pure Python, decoupled, tested across discovery, protocol framing, and observer subscriptions.
+- **KDE Qt Frontend (`frontends/kde_qt/`):** Implemented with KDE/Freedesktop StatusNotifierItem D-Bus integration and PyQt6 card popup.
 
 ## Verification Strategy
-- Test IP resolution (mDNS & ARP fallback).
-- Verify status parsing from JSON frame.
+- Test IP resolution (UDP multicast, mDNS, cross-platform ARP fallback).
+- Verify status parsing from JSON frame and mode header prefixes.
 - Test volume slider debouncing (confirm no packet spam).
 - Test input mode toggling.
+
+
