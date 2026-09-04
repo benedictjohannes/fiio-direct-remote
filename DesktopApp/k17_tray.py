@@ -212,8 +212,10 @@ class K17PopupWindow(QWidget):
         main_layout.addLayout(mode_header)
 
         self.mode_combo = QComboBox(self)
+        self.mode_combo.setPlaceholderText("-- Select Input --")
         for label, code in INPUT_MODES:
             self.mode_combo.addItem(label, code)
+        self.mode_combo.setCurrentIndex(-1)
         self.mode_combo.currentIndexChanged.connect(self._on_mode_selected)
         main_layout.addWidget(self.mode_combo)
 
@@ -244,7 +246,7 @@ class K17PopupWindow(QWidget):
         self.tray_app.set_volume(val)
 
     def _on_mode_selected(self, index):
-        if self.is_updating_ui:
+        if self.is_updating_ui or index < 0:
             return
         code = self.mode_combo.itemData(index)
         if code:
@@ -271,11 +273,10 @@ class K17PopupWindow(QWidget):
                             pass
 
                     # Update Mode if available
-                    if "usbAudio" in status_data:
-                        mode_str = str(status_data.get("usbAudio", ""))
-                        # Map backend status field if present
+                    mode_code = status_data.get("modeCode")
+                    if mode_code:
                         for idx, (_, code) in enumerate(INPUT_MODES):
-                            if code == mode_str:
+                            if code.upper() == mode_code.upper():
                                 self.mode_combo.setCurrentIndex(idx)
                                 break
             else:

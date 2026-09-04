@@ -7,35 +7,27 @@ A lightweight system tray controller for the FiiO K17 DAC built with **Python & 
 
 ## 1. Network & Protocol Architecture
 
-### Target Resolution & IP Caching
-- **Target Host:** `ingenic.local` (mDNS) with ARP table fallback (`40:d9:5a` MAC prefix). Port: `12100` over TCP.
-- **IP Caching:** Resolve the IP once at startup and cache it in memory (`self.cached_ip`).
+### Target Resolution & Discovery
+- **Discovery Strategy:**
+  1. **UDP Multicast Discovery (Primary):** Listen on multicast group `224.0.0.255:12101` for the 2-second periodic `K17` ASCII heartbeat. Extracts the device LAN IP instantly with zero CLI dependency.
+  2. **mDNS Resolution (Fallback 1):** Resolve hostname `ingenic.local` via `avahi-resolve` or standard DNS socket resolution.
+  3. **ARP Table Inspection (Fallback 2):** Parse `/proc/net/arp` or `ip neighbor` matching the Ingenic MAC address prefix `40:d9:5a`.
+- **IP Caching:** Cache resolved IP in memory (`self.cached_ip`).
 - **Cache Invalidation & Failure State:**
   - If target resolution or status fetch fails (on startup or tray open), clear `cached_ip` and mark device state as `OFFLINE`.
   - Store `is_online = False` in the application state.
 
 ### Connection Strategy
-- **On-Demand Short-Lived Sockets:** Open a fresh socket per command/poll, perform read/write, and close. Avoids background connection drop & keep-alive complexity.
+- **On-Demand Short-Lived Sockets:** Open a fresh socket per command/poll, perform read/write, and close after idle timeout (e.g. 30s). Avoids background connection drop & keep-alive complexity.
 
 ### Protocol Reference
-- See [k17_ctrl.sh](k17_ctrl.sh) for a simple and tested Bash implementation created through reverse engineering the wire protocol, observed through `adb shell` into the DAC.
-- **Status Poll Command:** Send ASCII `05010008` over TCP.
-  - Returns a payload containing JSON with status keys:
-    ```json
-    {
-      "currentVolume": 83,
-      "folderJump": true,
-      "gaplessPlay": true,
-      "maxVolume": 100,
-      "memoryPlay": false,
-      "memoryType": 0,
-      "playMode": 0,
-      "replayGain": 0,
-      "usbAudio": 2
-    }
-    ```
+- Full wire protocol specification is documented in [K17Protocol.md](K17Protocol.md).
+- **Status & Mode Poll Sequence:**
+  1. **Volume / Media Poll (`05010008`):** Send ASCII `05010008` over TCP. Returns JSON frame containing `currentVolume` (0–100) and `maxVolume` (100).
+  2. **Active Input Mode Poll (`0607000c0000`):** Send ASCII `0607000c0000` over TCP. Returns `a607000C<MODE_CODE>` denoting the active input mode (`0001` = USB, `0002` = Optical, `0003` = Coaxial, `0004` = Line In, `0005` = Balanced, `0006` = Bluetooth, `0007` = Streaming).
+  - Both queries are executed during initial connect / tray popup open to ensure exact volume and input mode are shown on cold start without placeholder guessing.
 - **Volume Set Command:** Send ASCII `0502000c` + 4-character UPPERCASE HEX value (`0` -> `0000`, `100` -> `0064`).
-- **Input Mode Set Command:** Send ASCII `0657000c` + 4-character mode ID:
+- **Input Mode Set Command:** Send ASCII `0657000c` + 4-character mode ID.
   - `0001`: USB
   - `0002`: Optical
   - `0003`: Coaxial
