@@ -1,1 +1,14 @@
 **/__pycache__
+*.pyc
+
+# Android & Gradle
+android/.gradle/
+android/build/
+android/*/build/
+android/local.properties
+.idea/
+*.iml
+android/*.iml
+android/*/*.iml
+.gradle/
+build/
