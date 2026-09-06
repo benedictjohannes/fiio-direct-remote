@@ -4,7 +4,7 @@ Wires PyQt6 event loop, SNI tray icon, popup card, and core K17DeviceController.
 """
 import sys
 from typing import Optional
-from PyQt6.QtCore import QObject, QTimer, QPoint
+from PyQt6.QtCore import QObject, QTimer, QPoint, pyqtSignal
 from PyQt6.QtGui import QAction, QCursor
 from PyQt6.QtWidgets import QApplication, QMenu
 
@@ -21,6 +21,8 @@ from .notifications import send_desktop_notification
 
 
 class K17TrayApp(QObject):
+    state_changed = pyqtSignal(object)
+
     def __init__(self, controller: Optional[K17DeviceController] = None):
         super().__init__()
         self.app = QApplication(sys.argv)
@@ -47,27 +49,29 @@ class K17TrayApp(QObject):
 
         self.sni = K17StatusNotifierItem()
         self.sni.set_icon(ICON_OFFLINE_NAME)
-        self.sni.set_tooltip("FiiO K17 Controller (Offline)")
+        self.sni.set_tooltip("FiiO K17", "Offline")
 
         self.sni.activated.connect(self._on_sni_activated)
         self.sni.context_menu_requested.connect(self._on_sni_context_menu)
         self.sni.scroll_received.connect(self._on_sni_scroll)
 
-        # Subscribe popup directly to core state changes
-        self.controller.add_state_listener(self._on_core_state_changed)
+        # Route core state changes through Qt signal to guarantee execution on main GUI thread
+        self.state_changed.connect(self._apply_state_change)
+        self.controller.add_state_listener(lambda state: self.state_changed.emit(state))
 
         # Initial status query
         self.refresh_status()
 
-    def _on_core_state_changed(self, state: K17State):
-        """Callback invoked whenever core state updates."""
+    def _apply_state_change(self, state: K17State):
+        """Slot executed on Qt main thread whenever state updates."""
         if state.is_online:
             self.sni.set_icon(ICON_ONLINE_NAME)
-            vol_str = f" - Vol: {state.volume}" if state.volume is not None else ""
-            self.sni.set_tooltip(f"FiiO K17 Controller (Online{vol_str})")
+            vol_str = f"Volume {state.volume}" if state.volume is not None else "Volume --"
+            mode_str = state.input_mode.display_name if state.input_mode else "Unknown"
+            self.sni.set_tooltip("FiiO K17", f"{vol_str}, {mode_str}")
         else:
             self.sni.set_icon(ICON_OFFLINE_NAME)
-            self.sni.set_tooltip("FiiO K17 Controller (Offline)")
+            self.sni.set_tooltip("FiiO K17", "Offline")
         self.popup.update_state(state)
 
     def _show_window(self):

@@ -1,11 +1,18 @@
 """
 KDE / Freedesktop StatusNotifierItem (SNI) D-Bus implementation.
-Provides system tray icon, tooltips, context menus, and mouse wheel scroll signals.
+Provides system tray icon, full (sa(iiay)ss) tooltips, context menus, and mouse wheel scroll signals.
+Uses dbus-python with PyQt6 main loop to properly export composite D-Bus structs.
 """
 import os
 from pathlib import Path
-from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, pyqtProperty, pyqtClassInfo
-from PyQt6.QtDBus import QDBusConnection, QDBusAbstractAdaptor, QDBusInterface
+
+import dbus
+import dbus.service
+import dbus.mainloop.pyqt6
+from PyQt6.QtCore import QObject, pyqtSignal
+
+# Ensure dbus uses the PyQt6 event loop
+dbus.mainloop.pyqt6.DBusQtMainLoop(set_as_default=True)
 
 ASSETS_DIR = Path(__file__).resolve().parent.parent.parent / "assets"
 ICON_ONLINE_NAME = "k17_logo_online"
@@ -13,181 +20,179 @@ ICON_OFFLINE_NAME = "k17_logo_offline"
 ICON_ONLINE_PATH = str(ASSETS_DIR / f"{ICON_ONLINE_NAME}.svg")
 ICON_OFFLINE_PATH = str(ASSETS_DIR / f"{ICON_OFFLINE_NAME}.svg")
 
+KDE_SNI_IFACE = "org.kde.StatusNotifierItem"
+FD_SNI_IFACE = "org.freedesktop.StatusNotifierItem"
+PROPS_IFACE = "org.freedesktop.DBus.Properties"
 
-@pyqtClassInfo("D-Bus Interface", "org.kde.StatusNotifierItem")
-class StatusNotifierItemKDEAdaptor(QDBusAbstractAdaptor):
-    NewTitle = pyqtSignal()
-    NewIcon = pyqtSignal()
-    NewAttentionIcon = pyqtSignal()
-    NewOverlayIcon = pyqtSignal()
-    NewMenu = pyqtSignal()
-    NewToolTip = pyqtSignal()
-    NewStatus = pyqtSignal(str)
 
-    def __init__(self, parent: "K17StatusNotifierItem"):
-        super().__init__(parent)
-        self.sni = parent
-        self.setAutoRelaySignals(True)
+class _DBusSNIObject(dbus.service.Object):
+    """
+    Exported D-Bus Object implementing org.kde.StatusNotifierItem and
+    org.freedesktop.StatusNotifierItem with proper (sa(iiay)ss) ToolTip struct.
+    """
 
-    @pyqtProperty(str)
-    def Category(self):
-        return self.sni.category
+    def __init__(self, parent_sni: "K17StatusNotifierItem", bus_name: dbus.service.BusName, object_path: str):
+        super().__init__(bus_name, object_path)
+        self.sni = parent_sni
 
-    @pyqtProperty(str)
-    def Id(self):
-        return self.sni.id
+    # --- Properties Interface ---
+    @dbus.service.method(PROPS_IFACE, in_signature="ss", out_signature="v")
+    def Get(self, interface_name: str, property_name: str):
+        if interface_name not in (KDE_SNI_IFACE, FD_SNI_IFACE):
+            raise dbus.exceptions.DBusException(f"Unknown interface {interface_name}")
 
-    @pyqtProperty(str)
-    def Title(self):
-        return self.sni.title
+        if property_name == "Category":
+            return dbus.String(self.sni.category)
+        elif property_name == "Id":
+            return dbus.String(self.sni.id)
+        elif property_name == "Title":
+            return dbus.String(self.sni.title)
+        elif property_name == "Status":
+            return dbus.String(self.sni.status)
+        elif property_name == "WindowId":
+            return dbus.Int32(0)
+        elif property_name == "IconThemePath":
+            return dbus.String(self.sni.icon_theme_path)
+        elif property_name == "IconName":
+            return dbus.String(self.sni.icon_name)
+        elif property_name == "IconPixmap":
+            return dbus.Array([], signature="(iiay)")
+        elif property_name == "OverlayIconName":
+            return dbus.String("")
+        elif property_name == "OverlayIconPixmap":
+            return dbus.Array([], signature="(iiay)")
+        elif property_name == "AttentionIconName":
+            return dbus.String("")
+        elif property_name == "AttentionIconPixmap":
+            return dbus.Array([], signature="(iiay)")
+        elif property_name == "AttentionMovieName":
+            return dbus.String("")
+        elif property_name == "ItemIsMenu":
+            return dbus.Boolean(False)
+        elif property_name == "Menu":
+            return dbus.ObjectPath("/NO_DBUS_MENU")
+        elif property_name == "ToolTip":
+            # Signature: (sa(iiay)ss) -> (icon_name, icon_pixmaps, title, subtitle)
+            pixmaps = dbus.Array([], signature="(iiay)")
+            return dbus.Struct(
+                (self.sni.icon_name, pixmaps, self.sni.tooltip_title, self.sni.tooltip_sub),
+                signature="sa(iiay)ss",
+            )
+        else:
+            raise dbus.exceptions.DBusException(f"Unknown property {property_name}")
 
-    @pyqtProperty(str)
-    def Status(self):
-        return self.sni.status
+    @dbus.service.method(PROPS_IFACE, in_signature="s", out_signature="a{sv}")
+    def GetAll(self, interface_name: str):
+        if interface_name not in (KDE_SNI_IFACE, FD_SNI_IFACE):
+            return dbus.Dictionary({}, signature="sv")
 
-    @pyqtProperty(int)
-    def WindowId(self):
-        return 0
+        pixmaps = dbus.Array([], signature="(iiay)")
+        return dbus.Dictionary(
+            {
+                "Category": dbus.String(self.sni.category),
+                "Id": dbus.String(self.sni.id),
+                "Title": dbus.String(self.sni.title),
+                "Status": dbus.String(self.sni.status),
+                "WindowId": dbus.Int32(0),
+                "IconThemePath": dbus.String(self.sni.icon_theme_path),
+                "IconName": dbus.String(self.sni.icon_name),
+                "IconPixmap": pixmaps,
+                "OverlayIconName": dbus.String(""),
+                "OverlayIconPixmap": pixmaps,
+                "AttentionIconName": dbus.String(""),
+                "AttentionIconPixmap": pixmaps,
+                "AttentionMovieName": dbus.String(""),
+                "ItemIsMenu": dbus.Boolean(False),
+                "Menu": dbus.ObjectPath("/NO_DBUS_MENU"),
+                "ToolTip": dbus.Struct(
+                    (self.sni.icon_name, pixmaps, self.sni.tooltip_title, self.sni.tooltip_sub),
+                    signature="sa(iiay)ss",
+                ),
+            },
+            signature="sv",
+        )
 
-    @pyqtProperty(str)
-    def IconThemePath(self):
-        return self.sni.icon_theme_path
-
-    @pyqtProperty(str)
-    def IconName(self):
-        return self.sni.icon_name
-
-    @pyqtProperty(str)
-    def OverlayIconName(self):
-        return ""
-
-    @pyqtProperty(str)
-    def AttentionIconName(self):
-        return ""
-
-    @pyqtProperty(str)
-    def AttentionMovieName(self):
-        return ""
-
-    @pyqtProperty(bool)
-    def ItemIsMenu(self):
-        return False
-
-    @pyqtSlot(int, str)
+    # --- Methods ---
+    @dbus.service.method(KDE_SNI_IFACE, in_signature="is")
     def Scroll(self, delta: int, orientation: str):
         self.sni.on_scroll(delta, orientation)
 
-    @pyqtSlot(int, int)
+    @dbus.service.method(KDE_SNI_IFACE, in_signature="ii")
     def Activate(self, x: int, y: int):
         self.sni.on_activate(x, y)
 
-    @pyqtSlot(int, int)
+    @dbus.service.method(KDE_SNI_IFACE, in_signature="ii")
     def ContextMenu(self, x: int, y: int):
         self.sni.on_context_menu(x, y)
 
-    @pyqtSlot(int, int)
+    @dbus.service.method(KDE_SNI_IFACE, in_signature="ii")
     def SecondaryActivate(self, x: int, y: int):
         self.sni.on_secondary_activate(x, y)
 
-    @pyqtSlot(str)
+    @dbus.service.method(KDE_SNI_IFACE, in_signature="s")
     def ProvideXdgActivationToken(self, token: str):
         pass
 
-
-@pyqtClassInfo("D-Bus Interface", "org.freedesktop.StatusNotifierItem")
-class StatusNotifierItemFreedesktopAdaptor(QDBusAbstractAdaptor):
-    NewTitle = pyqtSignal()
-    NewIcon = pyqtSignal()
-    NewAttentionIcon = pyqtSignal()
-    NewOverlayIcon = pyqtSignal()
-    NewMenu = pyqtSignal()
-    NewToolTip = pyqtSignal()
-    NewStatus = pyqtSignal(str)
-
-    def __init__(self, parent: "K17StatusNotifierItem"):
-        super().__init__(parent)
-        self.sni = parent
-        self.setAutoRelaySignals(True)
-
-    @pyqtProperty(str)
-    def Category(self):
-        return self.sni.category
-
-    @pyqtProperty(str)
-    def Id(self):
-        return self.sni.id
-
-    @pyqtProperty(str)
-    def Title(self):
-        return self.sni.title
-
-    @pyqtProperty(str)
-    def Status(self):
-        return self.sni.status
-
-    @pyqtProperty(int)
-    def WindowId(self):
-        return 0
-
-    @pyqtProperty(str)
-    def IconThemePath(self):
-        return self.sni.icon_theme_path
-
-    @pyqtProperty(str)
-    def IconName(self):
-        return self.sni.icon_name
-
-    @pyqtProperty(str)
-    def OverlayIconName(self):
-        return ""
-
-    @pyqtProperty(str)
-    def AttentionIconName(self):
-        return ""
-
-    @pyqtProperty(str)
-    def AttentionMovieName(self):
-        return ""
-
-    @pyqtProperty(bool)
-    def ItemIsMenu(self):
-        return False
-
-    @pyqtSlot(int, str)
-    def Scroll(self, delta: int, orientation: str):
+    # --- Freedesktop aliases for methods ---
+    @dbus.service.method(FD_SNI_IFACE, in_signature="is")
+    def ScrollFD(self, delta: int, orientation: str):
         self.sni.on_scroll(delta, orientation)
 
-    @pyqtSlot(int, int)
-    def Activate(self, x: int, y: int):
+    @dbus.service.method(FD_SNI_IFACE, in_signature="ii")
+    def ActivateFD(self, x: int, y: int):
         self.sni.on_activate(x, y)
 
-    @pyqtSlot(int, int)
-    def ContextMenu(self, x: int, y: int):
+    @dbus.service.method(FD_SNI_IFACE, in_signature="ii")
+    def ContextMenuFD(self, x: int, y: int):
         self.sni.on_context_menu(x, y)
 
-    @pyqtSlot(int, int)
-    def SecondaryActivate(self, x: int, y: int):
+    @dbus.service.method(FD_SNI_IFACE, in_signature="ii")
+    def SecondaryActivateFD(self, x: int, y: int):
         self.sni.on_secondary_activate(x, y)
 
-    @pyqtSlot(str)
-    def ProvideXdgActivationToken(self, token: str):
+    @dbus.service.method(FD_SNI_IFACE, in_signature="s")
+    def ProvideXdgActivationTokenFD(self, token: str):
+        pass
+
+    # --- Signals ---
+    @dbus.service.signal(KDE_SNI_IFACE)
+    def NewTitle(self):
+        pass
+
+    @dbus.service.signal(KDE_SNI_IFACE)
+    def NewIcon(self):
+        pass
+
+    @dbus.service.signal(KDE_SNI_IFACE)
+    def NewAttentionIcon(self):
+        pass
+
+    @dbus.service.signal(KDE_SNI_IFACE)
+    def NewOverlayIcon(self):
+        pass
+
+    @dbus.service.signal(KDE_SNI_IFACE)
+    def NewMenu(self):
+        pass
+
+    @dbus.service.signal(KDE_SNI_IFACE)
+    def NewToolTip(self):
+        pass
+
+    @dbus.service.signal(KDE_SNI_IFACE, signature="s")
+    def NewStatus(self, status: str):
         pass
 
 
 class K17StatusNotifierItem(QObject):
+    """
+    PyQt6 coordinator for the StatusNotifierItem D-Bus service.
+    """
     activated = pyqtSignal()
     context_menu_requested = pyqtSignal(int, int)
     scroll_received = pyqtSignal(int, str)
 
-    NewTitle = pyqtSignal()
-    NewIcon = pyqtSignal()
-    NewAttentionIcon = pyqtSignal()
-    NewOverlayIcon = pyqtSignal()
-    NewMenu = pyqtSignal()
-    NewToolTip = pyqtSignal()
-    NewStatus = pyqtSignal(str)
-
-    def __init__(self, item_id: str = "fiioK17", title: str = "FiiO K17 Controller"):
+    def __init__(self, item_id: str = "fiioK17", title: str = "FiiO K17"):
         super().__init__()
         self.id = item_id
         self.title = title
@@ -195,54 +200,48 @@ class K17StatusNotifierItem(QObject):
         self.status = "Active"
         self.icon_theme_path = str(ASSETS_DIR)
         self.icon_name = ICON_OFFLINE_NAME
-        self.tooltip = "FiiO K17 Controller (Offline)"
 
-        self.kde_adaptor = StatusNotifierItemKDEAdaptor(self)
-        self.fd_adaptor = StatusNotifierItemFreedesktopAdaptor(self)
+        self.tooltip_title = title
+        self.tooltip_sub = "Offline"
 
-        self.bus = QDBusConnection.sessionBus()
+        self.bus = dbus.SessionBus()
         pid = os.getpid()
         self.service_name = f"org.kde.StatusNotifierItem-{pid}-1"
         self.object_path = "/StatusNotifierItem"
 
-        self._register_dbus()
+        self.bus_name = dbus.service.BusName(self.service_name, self.bus)
+        self.dbus_obj = _DBusSNIObject(self, self.bus_name, self.object_path)
 
-    def _register_dbus(self):
-        registered_service = self.bus.registerService(self.service_name)
-        registered_obj = self.bus.registerObject(
-            self.object_path,
-            self,
-            QDBusConnection.RegisterOption.ExportAdaptors,
-        )
-        unique_name = self.bus.baseService()
-        print(
-            f"[SNI] D-Bus service registered: name={self.service_name} (ok={registered_service}), obj={self.object_path} (ok={registered_obj}), unique_name={unique_name}",
-            flush=True,
-        )
+        self._register_with_watcher()
 
-        watcher = QDBusInterface(
-            "org.kde.StatusNotifierWatcher",
-            "/StatusNotifierWatcher",
-            "org.kde.StatusNotifierWatcher",
-            self.bus,
-        )
-        reply = watcher.call("RegisterStatusNotifierItem", self.object_path)
-        if reply.type() == reply.MessageType.ErrorMessage:
-            print(f"[SNI] StatusNotifierWatcher registration error: {reply.errorMessage()}", flush=True)
-        else:
-            print(f"[SNI] Successfully registered with StatusNotifierWatcher ({self.object_path})", flush=True)
+    def _register_with_watcher(self):
+        try:
+            watcher = self.bus.get_object("org.kde.StatusNotifierWatcher", "/StatusNotifierWatcher")
+            watcher_iface = dbus.Interface(watcher, "org.kde.StatusNotifierWatcher")
+            watcher_iface.RegisterStatusNotifierItem(self.object_path)
+            print(
+                f"[SNI] Successfully registered with StatusNotifierWatcher: {self.service_name} at {self.object_path}",
+                flush=True,
+            )
+        except Exception as e:
+            print(f"[SNI] StatusNotifierWatcher registration error: {e}", flush=True)
 
-    def set_icon(self, icon_path: str):
-        if self.icon_name != icon_path:
-            self.icon_name = icon_path
-            self.NewIcon.emit()
+    def set_icon(self, icon_name: str):
+        if self.icon_name != icon_name:
+            self.icon_name = icon_name
+            self.dbus_obj.NewIcon()
 
-    def set_tooltip(self, tooltip_text: str):
-        if self.tooltip != tooltip_text:
-            self.tooltip = tooltip_text
-            self.title = tooltip_text
-            self.NewToolTip.emit()
-            self.NewTitle.emit()
+    def set_tooltip(self, title: str, subtitle: str):
+        changed = False
+        if self.tooltip_title != title or self.tooltip_sub != subtitle:
+            self.tooltip_title = title
+            self.tooltip_sub = subtitle
+            self.title = f"{title} ({subtitle})" if subtitle else title
+            changed = True
+
+        if changed:
+            self.dbus_obj.NewToolTip()
+            self.dbus_obj.NewTitle()
 
     def on_scroll(self, delta: int, orientation: str):
         print(f"[SNI] Scroll received: delta={delta}, orientation={orientation}", flush=True)
@@ -259,3 +258,4 @@ class K17StatusNotifierItem(QObject):
     def on_secondary_activate(self, x: int, y: int):
         print(f"[SNI] SecondaryActivate received: x={x}, y={y}", flush=True)
         self.activated.emit()
+
