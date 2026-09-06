@@ -9,13 +9,8 @@ from PyQt6.QtGui import QAction, QCursor
 from PyQt6.QtWidgets import QApplication, QMenu
 
 from core.controller import K17DeviceController, K17State
-from core.constants import InputMode
 from .popup_window import K17PopupWindow
-from .tray_sni import (
-    K17StatusNotifierItem,
-    ICON_ONLINE_NAME,
-    ICON_OFFLINE_NAME,
-)
+from .tray_sni import K17StatusNotifierItem
 from .workers import StatusWorker, VolumeWorker, ModeWorker
 from .notifications import send_desktop_notification
 
@@ -48,7 +43,6 @@ class K17TrayApp(QObject):
         self.menu.addAction(quit_action)
 
         self.sni = K17StatusNotifierItem()
-        self.sni.set_icon(ICON_OFFLINE_NAME)
         self.sni.set_tooltip("FiiO K17", "Offline")
 
         self.sni.activated.connect(self._on_sni_activated)
@@ -65,12 +59,12 @@ class K17TrayApp(QObject):
     def _apply_state_change(self, state: K17State):
         """Slot executed on Qt main thread whenever state updates."""
         if state.is_online:
-            self.sni.set_icon(ICON_ONLINE_NAME)
+            self.sni.set_dynamic_status(online=True, volume=state.volume)
             vol_str = f"Volume {state.volume}" if state.volume is not None else "Volume --"
             mode_str = state.input_mode.display_name if state.input_mode else "Unknown"
             self.sni.set_tooltip("FiiO K17", f"{vol_str}, {mode_str}")
         else:
-            self.sni.set_icon(ICON_OFFLINE_NAME)
+            self.sni.set_dynamic_status(online=False, volume=None)
             self.sni.set_tooltip("FiiO K17", "Offline")
         self.popup.update_state(state)
 
@@ -103,6 +97,7 @@ class K17TrayApp(QObject):
         self.pending_volume = max(0, min(100, self.pending_volume + step))
         print(f"[SNI] Scroll event applied: step={step}, pending_volume={self.pending_volume}", flush=True)
 
+        self.sni.set_dynamic_status(online=True, volume=self.pending_volume)
         self.popup.update_volume_display(self.pending_volume)
         self.scroll_vol_timer.start()
 
@@ -116,6 +111,8 @@ class K17TrayApp(QObject):
             return
 
         self.popup.set_connecting_state()
+        self.sni.set_connecting()
+        self.sni.set_tooltip("FiiO K17", "Connecting...")
         self.worker = StatusWorker(self.controller, force_resolve=force_resolve)
         self.worker.finished.connect(self._on_status_retrieved)
         self.worker.start()
