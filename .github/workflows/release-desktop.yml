@@ -1,4 +1,4 @@
-name: Release App
+name: Release Desktop App
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - master
     paths:
       - "desktop-app/**"
-      - ".github/workflows/release.yml"
+      - ".github/workflows/release-desktop.yml"
 
 jobs:
   release:
