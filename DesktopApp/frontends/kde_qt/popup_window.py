@@ -11,10 +11,39 @@ from PyQt6.QtWidgets import (
     QSlider,
     QComboBox,
     QPushButton,
+    QStyle,
+    QStyleOptionSlider,
 )
 
 from core.constants import INPUT_MODES_ORDERED, InputMode
 from core.controller import K17DeviceController, K17State
+
+
+class ClickableSlider(QSlider):
+    """
+    QSlider subclass that immediately jumps directly to the clicked location
+    rather than stepping incrementally (PageStep) by 10.
+    """
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            opt = QStyleOptionSlider()
+            self.initStyleOption(opt)
+            sr = self.style().subControlRect(
+                QStyle.ComplexControl.CC_Slider,
+                opt,
+                QStyle.SubControl.SC_SliderHandle,
+                self
+            )
+            # If clicked outside the handle, jump directly to click position
+            if not sr.contains(event.position().toPoint()):
+                new_val = QStyle.sliderValueFromPosition(
+                    self.minimum(),
+                    self.maximum(),
+                    int(event.position().x()),
+                    self.width()
+                )
+                self.setValue(new_val)
+        super().mousePressEvent(event)
 
 
 class K17PopupWindow(QWidget):
@@ -132,7 +161,7 @@ class K17PopupWindow(QWidget):
         vol_header.addWidget(self.vol_val_label)
         main_layout.addLayout(vol_header)
 
-        self.vol_slider = QSlider(Qt.Orientation.Horizontal, self)
+        self.vol_slider = ClickableSlider(Qt.Orientation.Horizontal, self)
         self.vol_slider.setRange(0, 100)
         self.vol_slider.setValue(0)
         self.vol_slider.valueChanged.connect(self._on_slider_value_changed)
