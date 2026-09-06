@@ -26,7 +26,7 @@ jobs:
           tar -czvf dist/fiio-direct-remote-linux-qt6.tar.gz -C desktop-app .
 
       - name: Create or Update GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: desktop-latest
           name: "FiiO Direct Remote Desktop App (Latest)"
