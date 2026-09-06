@@ -201,6 +201,6 @@ adb devices -l
 adb -s 192.168.240.112:5555 logcat -s "K17RemoteService" "K17Backend" "K17Widget"
 
 # Launch main activity
-adb -s 192.168.240.112:5555 shell am start -n com.quirkies.fiiok17/.ui.MainActivity
+adb -s 192.168.240.112:5555 shell am start -n com.encelerate.fiiodirectremote/.ui.MainActivity
 ```
 

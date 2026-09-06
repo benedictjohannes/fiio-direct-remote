@@ -1,4 +1,4 @@
-package com.quirkies.fiiok17.widget
+package com.encelerate.fiiodirectremote.widget
 
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver

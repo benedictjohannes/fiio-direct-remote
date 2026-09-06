@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.quirkies.fiiok17"
+    namespace = "com.encelerate.fiiodirectremote"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.quirkies.fiiok17"
+        applicationId = "com.encelerate.fiiodirectremote"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

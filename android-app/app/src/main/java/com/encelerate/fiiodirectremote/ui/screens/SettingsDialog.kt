@@ -1,4 +1,4 @@
-package com.quirkies.fiiok17.ui.screens
+package com.encelerate.fiiodirectremote.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -17,7 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.quirkies.fiiok17.data.UserSettings
+import com.encelerate.fiiodirectremote.data.UserSettings
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

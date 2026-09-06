@@ -1,4 +1,4 @@
-package com.quirkies.fiiok17.data
+package com.encelerate.fiiodirectremote.data
 
 import org.json.JSONObject
 import java.util.Locale

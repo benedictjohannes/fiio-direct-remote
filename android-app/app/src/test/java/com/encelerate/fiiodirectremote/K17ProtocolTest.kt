@@ -1,6 +1,6 @@
-package com.quirkies.fiiok17
+package com.encelerate.fiiodirectremote
 
-import com.quirkies.fiiok17.data.K17Protocol
+import com.encelerate.fiiodirectremote.data.K17Protocol
 import org.junit.Assert.*
 import org.junit.Test
 

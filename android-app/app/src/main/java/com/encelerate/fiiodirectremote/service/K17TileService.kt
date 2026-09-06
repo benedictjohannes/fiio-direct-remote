@@ -1,12 +1,12 @@
-package com.quirkies.fiiok17.service
+package com.encelerate.fiiodirectremote.service
 
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import androidx.annotation.RequiresApi
-import com.quirkies.fiiok17.R
-import com.quirkies.fiiok17.data.K17Backend
+import com.encelerate.fiiodirectremote.R
+import com.encelerate.fiiodirectremote.data.K17Backend
 import kotlinx.coroutines.*
 
 @RequiresApi(Build.VERSION_CODES.N)
@@ -61,12 +61,12 @@ class K17TileService : TileService() {
 
         if (status.isOnline) {
             tile.state = Tile.STATE_ACTIVE
-            tile.label = "K17: ${status.volume ?: "--"}%"
+            tile.label = "FiiO: ${status.volume ?: "--"}%"
             tile.subtitle = status.inputMode?.shortName ?: "Connected"
             tile.icon = Icon.createWithResource(this, R.drawable.ic_k17_notification)
         } else {
             tile.state = Tile.STATE_INACTIVE
-            tile.label = "FiiO K17"
+            tile.label = "FiiO DAC"
             tile.subtitle = "Disconnected"
             tile.icon = Icon.createWithResource(this, R.drawable.ic_k17_notification)
         }

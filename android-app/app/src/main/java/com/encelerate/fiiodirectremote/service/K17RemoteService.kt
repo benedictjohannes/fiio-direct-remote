@@ -1,4 +1,4 @@
-package com.quirkies.fiiok17.service
+package com.encelerate.fiiodirectremote.service
 
 import android.app.*
 import android.content.Context
@@ -14,11 +14,11 @@ import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.quirkies.fiiok17.R
-import com.quirkies.fiiok17.data.K17Backend
-import com.quirkies.fiiok17.data.K17Status
-import com.quirkies.fiiok17.data.UserPreferencesRepository
-import com.quirkies.fiiok17.ui.MainActivity
+import com.encelerate.fiiodirectremote.R
+import com.encelerate.fiiodirectremote.data.K17Backend
+import com.encelerate.fiiodirectremote.data.K17Status
+import com.encelerate.fiiodirectremote.data.UserPreferencesRepository
+import com.encelerate.fiiodirectremote.ui.MainActivity
 import kotlinx.coroutines.*
 
 class K17RemoteService : Service() {
@@ -74,7 +74,7 @@ class K17RemoteService : Service() {
     }
 
     private fun setupMediaSession() {
-        mediaSession = MediaSessionCompat(this, "FiiOK17Remote").apply {
+        mediaSession = MediaSessionCompat(this, "FiiODirectRemote").apply {
             setCallback(object : MediaSessionCompat.Callback() {
                 override fun onSeekTo(pos: Long) {
                     // Position in ms (0 to 100_000 ms -> 0 to 100 volume)
@@ -131,7 +131,7 @@ class K17RemoteService : Service() {
         val positionMs = currentVol * 1000L
 
         val metadata = MediaMetadataCompat.Builder()
-            .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "FiiO K17 Volume: $currentVol%")
+            .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "FiiO Volume: $currentVol%")
             .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Input: ${status.inputMode?.name ?: "Unknown"}")
             .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "Network Remote Control")
             .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, 100_000L) // 100 seconds = 100%
@@ -237,10 +237,10 @@ class K17RemoteService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "FiiO K17 Remote Control",
+                "FiiO Direct Remote",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Volume seekbar and playback controls for FiiO K17 DAC"
+                description = "Volume seekbar and controls for FiiO DAC"
                 setShowBadge(false)
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
@@ -265,10 +265,10 @@ class K17RemoteService : Service() {
         const val CHANNEL_ID = "k17_remote_channel"
         const val NOTIFICATION_ID = 1017
 
-        const val ACTION_STOP_SERVICE = "com.quirkies.fiiok17.ACTION_STOP"
-        const val ACTION_VOL_UP = "com.quirkies.fiiok17.ACTION_VOL_UP"
-        const val ACTION_VOL_DOWN = "com.quirkies.fiiok17.ACTION_VOL_DOWN"
-        const val ACTION_CYCLE_MODE = "com.quirkies.fiiok17.ACTION_CYCLE_MODE"
+        const val ACTION_STOP_SERVICE = "com.encelerate.fiiodirectremote.ACTION_STOP"
+        const val ACTION_VOL_UP = "com.encelerate.fiiodirectremote.ACTION_VOL_UP"
+        const val ACTION_VOL_DOWN = "com.encelerate.fiiodirectremote.ACTION_VOL_DOWN"
+        const val ACTION_CYCLE_MODE = "com.encelerate.fiiodirectremote.ACTION_CYCLE_MODE"
 
         fun start(context: Context) {
             val intent = Intent(context, K17RemoteService::class.java)

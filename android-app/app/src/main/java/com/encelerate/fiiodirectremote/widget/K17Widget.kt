@@ -1,4 +1,4 @@
-package com.quirkies.fiiok17.widget
+package com.encelerate.fiiodirectremote.widget
 
 import android.content.Context
 import android.content.Intent
@@ -21,10 +21,10 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
-import com.quirkies.fiiok17.R
-import com.quirkies.fiiok17.data.K17Backend
-import com.quirkies.fiiok17.data.K17Protocol
-import com.quirkies.fiiok17.ui.MainActivity
+import com.encelerate.fiiodirectremote.R
+import com.encelerate.fiiodirectremote.data.K17Backend
+import com.encelerate.fiiodirectremote.data.K17Protocol
+import com.encelerate.fiiodirectremote.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -43,7 +43,7 @@ class K17Widget : GlanceAppWidget() {
     }
 
     @Composable
-    private fun WidgetContent(status: com.quirkies.fiiok17.data.K17Status, context: Context) {
+    private fun WidgetContent(status: com.encelerate.fiiodirectremote.data.K17Status, context: Context) {
         val backgroundColor = androidx.compose.ui.graphics.Color(0xFF161922)
         val cardBg = androidx.compose.ui.graphics.Color(0xFF212635)
         val accentColor = androidx.compose.ui.graphics.Color(0xFFFF9500)
@@ -127,7 +127,7 @@ class K17Widget : GlanceAppWidget() {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "FiiO K17 DAC",
+                        text = "FiiO DAC",
                         style = TextStyle(
                             color = ColorProvider(textColor),
                             fontSize = 15.sp,

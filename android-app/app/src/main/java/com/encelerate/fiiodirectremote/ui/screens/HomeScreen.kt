@@ -1,4 +1,4 @@
-package com.quirkies.fiiok17.ui.screens
+package com.encelerate.fiiodirectremote.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -23,9 +23,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.quirkies.fiiok17.data.InputMode
-import com.quirkies.fiiok17.data.K17Protocol
-import com.quirkies.fiiok17.ui.MainUiState
+import com.encelerate.fiiodirectremote.data.InputMode
+import com.encelerate.fiiodirectremote.data.K17Protocol
+import com.encelerate.fiiodirectremote.ui.MainUiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,7 +56,7 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = "FiiO K17",
+                            text = "FiiO DAC",
                             fontWeight = FontWeight.Black,
                             letterSpacing = 1.sp,
                             color = MaterialTheme.colorScheme.onBackground

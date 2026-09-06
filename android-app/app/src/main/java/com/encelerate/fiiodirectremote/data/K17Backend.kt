@@ -1,4 +1,4 @@
-package com.quirkies.fiiok17.data
+package com.encelerate.fiiodirectremote.data
 
 import android.content.Context
 import android.util.Log

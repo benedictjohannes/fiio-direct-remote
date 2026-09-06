@@ -30,7 +30,7 @@ The **FiiO K17** supports local network control over port `12100` (TCP) and disc
 
 - [`K17Protocol.md`](K17Protocol.md) — Reverse-engineered network protocol documentation (UDP discovery, TCP commands, JSON payloads, input multiplexing).
 - [`desktop-app/`](desktop-app/) — Python 3 & PyQt6 desktop system tray client ([Design Plan](DesktopPlan.md)).
-- [`android/`](android/) — Android native app & Glance home screen widget ([Design Plan](AndroidPlan.md)).
+- [`android-app/`](android-app/) — Android native app & Glance home screen widget ([Design Plan](AndroidPlan.md)).
 
 ---
 
@@ -56,12 +56,16 @@ python3 main.py
 ```
 
 ### Android App
-The Android app is currently distributed as source code. Open the [`android/`](android/) directory in Android Studio or build with Gradle:
+
+#### Download APK
+Download the latest prebuilt APK from the [GitHub Releases](https://github.com/benedictjohannes/fiio-direct-remote/releases/tag/android-latest) page (`fiio-direct-remote.apk`).
+
+#### Build from Source
+Open the [`android-app/`](android-app/) directory in Android Studio or build with Gradle:
 ```bash
-cd android
+cd android-app
 ./gradlew assembleDebug
 ```
-Prebuilt APK releases and other distribution options may be added if there is sufficient interest.
 
 ---
 

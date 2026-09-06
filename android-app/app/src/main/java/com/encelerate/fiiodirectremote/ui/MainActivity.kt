@@ -1,4 +1,4 @@
-package com.quirkies.fiiok17.ui
+package com.encelerate.fiiodirectremote.ui
 
 import android.os.Bundle
 import android.view.KeyEvent
@@ -11,8 +11,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import com.quirkies.fiiok17.ui.screens.HomeScreen
-import com.quirkies.fiiok17.ui.theme.FiiOK17Theme
+import com.encelerate.fiiodirectremote.ui.screens.HomeScreen
+import com.encelerate.fiiodirectremote.ui.theme.FiiOK17Theme
 
 class MainActivity : ComponentActivity() {
 

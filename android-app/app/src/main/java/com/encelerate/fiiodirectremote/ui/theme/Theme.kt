@@ -1,4 +1,4 @@
-package com.quirkies.fiiok17.ui.theme
+package com.encelerate.fiiodirectremote.ui.theme
 
 import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme

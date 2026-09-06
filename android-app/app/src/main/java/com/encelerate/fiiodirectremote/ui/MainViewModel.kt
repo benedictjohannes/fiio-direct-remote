@@ -1,10 +1,10 @@
-package com.quirkies.fiiok17.ui
+package com.encelerate.fiiodirectremote.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.quirkies.fiiok17.data.*
-import com.quirkies.fiiok17.service.K17RemoteService
+import com.encelerate.fiiodirectremote.data.*
+import com.encelerate.fiiodirectremote.service.K17RemoteService
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
