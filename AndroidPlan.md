@@ -127,7 +127,7 @@ The widget operates seamlessly in two visual states:
 ## 5. Proposed Project Structure
 
 ```
-android/
+android-app/
 ├── app/
 │   ├── src/main/
 │   │   ├── java/com/quirkies/fiiok17/

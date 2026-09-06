@@ -1,0 +1,45 @@
+name: Release App
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - "desktop-app/**"
+      - ".github/workflows/release.yml"
+
+jobs:
+  release:
+    name: Package and Release Linux Qt6 App
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create release tarball
+        run: |
+          mkdir -p dist
+          # Package desktop-app directory into archive
+          tar -czvf dist/fiio-direct-remote-linux-qt6.tar.gz -C desktop-app .
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop-latest
+          name: "FiiO Direct Remote Desktop App (Latest)"
+          body: |
+            Automated release build for FiiO Direct Remote Desktop Tray App (Linux Qt6).
+            
+            ### Quick Install (Linux):
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/master/desktop-app/install_linux.sh | bash
+            ```
+          draft: false
+          prerelease: false
+          files: |
+            dist/fiio-direct-remote-linux-qt6.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

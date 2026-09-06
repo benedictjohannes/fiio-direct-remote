@@ -76,10 +76,9 @@ A lightweight system tray controller for the FiiO K17 DAC built with **Python & 
 ## 4. Architecture & Directory Structure
 
 ```text
-DesktopApp/
+desktop-app/
 ├── assets/
-│   ├── k17_logo_online.svg / png   # Active connected tray icon
-│   └── k17_logo_offline.svg / png  # Disconnected/error tray icon
+│   └── logo.svg                    # Application & desktop launcher SVG icon
 │
 ├── core/                           # 100% Pure Python & Cross-Platform (Zero UI / Toolkit deps)
 │   ├── constants.py                # Ports, commands, InputMode enum & display names

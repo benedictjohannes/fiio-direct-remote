@@ -17,13 +17,13 @@ This repository contains reverse-engineered protocol documentation and remote co
 
 ### Desktop System Tray Controller (Linux / KDE Plasma)
 - **Design & Architecture Plan:** [`DesktopPlan.md`](DesktopPlan.md)
-- **Source Directory:** `DesktopApp/`
+- **Source Directory:** `desktop-app/`
 - **Tech Stack:** Python 3, PyQt6 (`QSystemTrayIcon`, popup control card).
 - **Features:** Volume slider with 500ms debounce, input mode selector, dynamic SVG tray icons (online/offline status), and on-demand short-lived TCP sockets.
 
 ### Android Native Remote App & Widget
 - **Design & Architecture Plan:** [`AndroidPlan.md`](AndroidPlan.md)
-- **Source Directory:** `android/`
+- **Source Directory:** `android-app/`
 - **Tech Stack:** Kotlin, Jetpack Compose, Jetpack Glance (Home Screen Widget), Material 3.
 - **Features:** Direct volume control & hardware volume rocker interception, input switcher, Glance home screen widget (Active / Inactive states with auto-connect), optional foreground media notification with seekbar volume scrubbing, and configurable idle socket disconnect timer (e.g. 10s default) to release device lock.
 - **Testing Environment:** Waydroid (`192.168.240.112:5555`, Android 13 `x86_64`) on local host.

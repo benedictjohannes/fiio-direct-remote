@@ -29,18 +29,30 @@ The **FiiO K17** supports local network control over port `12100` (TCP) and disc
 ## 📑 Repository Structure
 
 - [`K17Protocol.md`](K17Protocol.md) — Reverse-engineered network protocol documentation (UDP discovery, TCP commands, JSON payloads, input multiplexing).
-- [`DesktopApp/`](DesktopApp/) — Python 3 & PyQt6 desktop system tray client ([Design Plan](DesktopPlan.md)).
+- [`desktop-app/`](desktop-app/) — Python 3 & PyQt6 desktop system tray client ([Design Plan](DesktopPlan.md)).
 - [`android/`](android/) — Android native app & Glance home screen widget ([Design Plan](AndroidPlan.md)).
 
 ---
 
 ## 🚀 Getting Started
 
-### Desktop Tray App (Linux only for now)
+### Desktop Tray App (Linux / KDE Plasma)
+
+#### One-Line Installation (Frictionless)
 ```bash
-cd DesktopApp
-pip install PyQt6
-python main.py
+curl -fsSL https://raw.githubusercontent.com/benedictjohannes/fiio-direct-remote/master/desktop-app/install_linux.sh | bash
+```
+
+The script sets up desktop integration (`.desktop` menu launcher, SVG icon, `fiio-tray` command) and configures autostart via standard XDG autostart or `systemd --user`.
+
+#### Manual / From Cloned Source
+```bash
+cd desktop-app
+./install_linux.sh
+```
+Or run directly:
+```bash
+python3 main.py
 ```
 
 ### Android App
